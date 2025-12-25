@@ -1,69 +1,85 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import data_manager
 import analyzer
 import visualizer
 import report_generator
-import pandas as pd
+import os
 
-def display_menu():
-    print("\n" + "="*40)
-    print("   성적 분석 및 PDF 리포트 생성 시스템")
-    print("="*40)
-    print("1. 성적 데이터 불러오기 (CSV)")
-    print("2. 통계 분석 수행")
-    print("3. 시각화 그래프 생성")
-    print("4. PDF 리포트 자동 생성")
-    print("5. 분석 결과 CSV 저장")
-    print("0. 프로그램 종료")
-    print("="*40)
+class GradeAnalysisGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("성적 분석 및 PDF 리포트 시스템")
+        self.root.geometry("380x540")
+        
+        self.df = None
+        self.stats = None
 
-def main():
-    df = None
-    stats = None
+        tk.Label(root, text="성적 분석 시스템", font=("Arial", 18, "bold")).pack(pady=30)
 
-    while True:
-        display_menu()
-        choice = input("원하는 작업 번호를 선택하세요: ")
+        btn_style = {"width": 35, "height": 2, "font": ("Arial", 10)}
+        
+        tk.Button(root, text="1. CSV 데이터 불러오기", command=self.load_file, **btn_style).pack(pady=10)
+        tk.Button(root, text="2. 통계 분석 실행", command=self.run_analysis, **btn_style).pack(pady=10)
+        tk.Button(root, text="3. 시각화 그래프 생성", command=self.run_visualize, **btn_style).pack(pady=10)
+        tk.Button(root, text="4. PDF 리포트 자동 생성", command=self.run_report, **btn_style).pack(pady=10)
+        tk.Button(root, text="5. 분석 결과 CSV로 저장", command=self.save_csv, **btn_style).pack(pady=10)
 
-        if choice == '1':
-            file_name = input("불러올 CSV 파일명을 입력하세요 (예: scores.csv): ")
-            df = data_manager.load_data(file_name)
+        self.status_var = tk.StringVar(value="파일을 불러와주세요.")
+        self.status_label = tk.Label(root, textvariable=self.status_var, fg="blue", font=("Arial", 9))
+        self.status_label.pack(pady=20)
 
-        elif choice == '2':
-            if df is not None:
-                df = analyzer.calculate_student_performance(df)
-                stats = analyzer.get_class_statistics(df)
-                print("\n[통계 분석 완료]")
-                for key, val in stats.items():
-                    print(f"- {key}: {val:.2f}")
+        copyright_text = "Made by Yunho Jang"
+        tk.Label(root, text=copyright_text, fg="gray", font=("Arial", 8)).pack(side="bottom", pady=15)
+
+    def load_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+        if file_path:
+            self.df = data_manager.load_data(file_path)
+            if self.df is not None:
+                self.status_var.set(f"로드 완료: {os.path.basename(file_path)}")
+                self.status_label.config(fg="green")
             else:
-                print("오류: 먼저 데이터를 불러와주세요. (1번 메뉴)")
+                messagebox.showerror("오류", "데이터 형식이 잘못되었거나 파일을 읽을 수 없습니다.")
 
-        elif choice == '3':
-            if df is not None and "Total" in df.columns:
-                visualizer.create_visualizations(df)
-            else:
-                print("오류: 먼저 통계 분석을 수행해주세요. (2번 메뉴)")
-
-        elif choice == '4':
-            if df is not None and stats is not None:
-                report_generator.generate_pdf_report(df, stats)
-            else:
-                print("오류: 분석 데이터 또는 통계치가 부족합니다. (2, 3번 메뉴 확인)")
-
-        elif choice == '5':
-            if df is not None:
-                save_path = input("저장할 파일명을 입력하세요 (예: result.csv): ")
-                df.to_csv(save_path, index=False)
-                print(f"성공: 분석 결과가 '{save_path}'로 저장되었습니다.")
-            else:
-                print("오류: 저장할 데이터가 없습니다.")
-
-        elif choice == '0':
-            print("프로그램을 종료합니다.")
-            break
-
+    def run_analysis(self):
+        if self.df is not None:
+            self.df = analyzer.calculate_student_performance(self.df)
+            self.stats = analyzer.get_class_statistics(self.df)
+            messagebox.showinfo("분석 완료", f"학급 평균: {self.stats['Mean']:.2f}\n최고점: {self.stats['Max']:.2f}")
+            self.status_var.set("통계 분석이 완료되었습니다.")
         else:
-            print("잘못된 선택입니다. 다시 입력해주세요.")
+            messagebox.showwarning("주의", "먼저 CSV 파일을 불러와주세요.")
+
+    def run_visualize(self):
+        if self.df is not None and "Total" in self.df.columns:
+            visualizer.create_visualizations(self.df)
+            messagebox.showinfo("시각화 완료", "그래프가 'plots' 폴더에 저장되었습니다.")
+            self.status_var.set("시각화 그래프 생성이 완료되었습니다.")
+        else:
+            messagebox.showwarning("주의", "먼저 통계 분석(2번)을 수행해주세요.")
+
+    def run_report(self):
+        if self.df is not None and self.stats is not None:
+            try:
+                report_generator.generate_pdf_report(self.df, self.stats)
+                messagebox.showinfo("성공", "PDF 리포트가 성공적으로 생성되었습니다.")
+                self.status_var.set("PDF 리포트 생성이 완료되었습니다.")
+            except Exception as e:
+                messagebox.showerror("오류", f"리포트 생성 중 오류 발생: {e}")
+        else:
+            messagebox.showwarning("주의", "분석 데이터가 부족합니다 (1~3번 과정 확인).")
+
+    def save_csv(self):
+        if self.df is not None:
+            save_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+            if save_path:
+                self.df.to_csv(save_path, index=False)
+                messagebox.showinfo("저장 완료", f"결과가 {os.path.basename(save_path)}에 저장되었습니다.")
+        else:
+            messagebox.showwarning("주의", "저장할 데이터가 없습니다.")
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = GradeAnalysisGUI(root)
+    root.mainloop()
